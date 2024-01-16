@@ -19,7 +19,7 @@ class channel():
         self.userlist.append(user)
     
 channels = ["#general", "#random"]
-user_list = []
+userDAO = []
 threads = []
 
 class ThreadUser(threading.Thread):
@@ -98,9 +98,9 @@ class ThreadUser(threading.Thread):
             self.user.socket.send(bytes(str(names_display), 'UTF-8'))
             
     def send_away(self, msg):
-        ind = [i for i in range(len(user_list)) if user_list[i].name == self.user.name]
-        user_list[ind[0]].away = not user_list[ind[0]].away
-        user_list[ind[0]].automatic_resp= 'Réponse automatique de '+user_list[ind[0]].name +' : '+ msg[6::]
+        ind = [i for i in range(len(userDAO)) if userDAO[i].name == self.user.name]
+        userDAO[ind[0]].away = not userDAO[ind[0]].away
+        userDAO[ind[0]].automatic_resp= 'Réponse automatique de ' + userDAO[ind[0]].name + ' : ' + msg[6::]
         self.away = not self.away
         self.automatic_resp = 'Réponse automatique de '+ self.user.name +' : '+ msg[6::]
         
@@ -109,7 +109,7 @@ class ThreadUser(threading.Thread):
         p_invited = msg[8::]
         print(self.user.name+" invited "+ p_invited)   
         own_channels=[ "( Channel: "+str(l.channel_name)+ ", Password: "+ str(l.key)+" )" for l in channels for cl in l.userlist  if cl.name == self.user.name]            
-        target_socket=[cl.socket for cl in user_list if cl.name == p_invited]
+        target_socket=[cl.socket for cl in userDAO if cl.name == p_invited]
         if target_socket != []:
             target_socket[0].send(bytes(self.user.name+" invited you to the channels below :"+str(own_channels), 'UTF-8'))            
         else:
@@ -152,7 +152,7 @@ class ThreadUser(threading.Thread):
 
         else: # sinon nickname (donc message privé)
             nickname = target  
-            target_user=[cl for cl in user_list if cl.name == nickname]
+            target_user=[cl for cl in userDAO if cl.name == nickname]
             
             if target_user != []:
                 print(target_user[0].name)
@@ -171,7 +171,7 @@ class ThreadUser(threading.Thread):
           
 
     def run(self):        
-        global user_list
+        global userDAO
         print ("Connection from : ", adresse)
         msg = ''
         while True:            
@@ -243,11 +243,11 @@ while True:
         to_client = '/Disconnect'
         try:
             
-            for k in range(len(user_list)):
-                print("Sending /Disconnect to user: ", user_list[k].name)
-                user_list[k].socket.send(bytes(to_client, 'UTF-8'))
-                user_list[k].socket.shutdown(socket.SHUT_RDWR)
-                user_list[k].socket.close()
+            for k in range(len(userDAO)):
+                print("Sending /Disconnect to user: ", userDAO[k].name)
+                userDAO[k].socket.send(bytes(to_client, 'UTF-8'))
+                userDAO[k].socket.shutdown(socket.SHUT_RDWR)
+                userDAO[k].socket.close()
 
         except OSError:
             pass

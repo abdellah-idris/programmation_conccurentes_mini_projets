@@ -14,13 +14,13 @@ class Channel:
 
 def handle_client(client_socket, username):
     user = User(username, client_socket)
-    user_list.append(user)
+    userDAO.append(user)
 
     while True:
         try:
             message = client_socket.recv(1024).decode('utf-8')
             if message == '/disconnect':
-                user_list.remove(user)
+                userDAO.remove(user)
                 break
             elif message.startswith('/join'):
                 channel_name = message.split()[1]
@@ -34,7 +34,7 @@ def handle_client(client_socket, username):
             else:
                 send_channel_message(user, message)
         except ConnectionResetError:
-            user_list.remove(user)
+            userDAO.remove(user)
             break
 
 def join_channel(user, channel_name):
@@ -88,7 +88,7 @@ def find_channel(channel_name):
     return None
 
 def find_user(username):
-    for user in user_list:
+    for user in userDAO:
         if user.username == username:
             return user
     return None
@@ -108,6 +108,6 @@ def start_server():
         client_thread.start()
 
 if __name__ == "__main__":
-    user_list = []
+    userDAO = []
     channel_list = []
     start_server()
