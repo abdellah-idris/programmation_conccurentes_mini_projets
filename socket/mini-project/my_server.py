@@ -30,7 +30,7 @@ class channel():
         self.userlist.append(user)
 
 
-channels = {"#general ": channel("#general"), "#random": channel("#random")}
+channels = {"#general": channel("#general"), "#random": channel("#random")}
 user_list = {}
 threads = []
 
@@ -40,7 +40,6 @@ class ThreadUser(threading.Thread):
         threading.Thread.__init__(self)
         self.user = user(adresse, clientsocket, "Anonymous")
         self.stop = threading.Event()
-
         self.away = False
         self.automatic_resp = ''
         print(f"New thread started for {adresse} at {clientsocket} ")
@@ -53,33 +52,39 @@ class ThreadUser(threading.Thread):
 
     def list(self):
         print("affichage de la liste des channels")
-        channels_names = channels.keys()
+        channels_names = set(channels.keys())
+        self.user.socket.send(bytes("Available channels :", 'UTF-8'))
         self.user.socket.send(bytes(str(channels_names), 'UTF-8'))
 
     def join_channel(self, msg):
         split_msg = msg.split()
-        chan_tojoin = split_msg[1]
+        channel_to_join = split_msg[1]
 
         key = None
         if len(split_msg) == 3:
             key = split_msg[2]
 
-        print("Tentative de rejoindre un channel")
+        print(f"Tentative de rejoindre un channel {channel_to_join} avec la clé {key}")
 
-        if chan_tojoin not in channels.keys():
-            print("Création d'un nouveau channel")
-            new_channel = channel(chan_tojoin, key)
+        if channel_to_join not in channels.keys():
+            print(f"Création d'un nouveau channel {channel_to_join} avec la clé {key} ")
+            new_channel = channel(channel_to_join, key)
             new_channel.update_userlist(user(self.user.adresse, self.user.socket, self.user.name))
-            channels[chan_tojoin] = new_channel
+            channels[channel_to_join] = new_channel
+            self.user.socket.send(bytes(f"Création d'un nouveau channel {channel_to_join} avec la clé {key} ", 'UTF-8'))
+
 
         else:
-            canal = channels[chan_tojoin]
-            if canal.get_channel_name() == key:
-                print("Le user a rejoint le channel")
+            canal = channels[channel_to_join]
+            if canal.get_key() == key:
+                print(f"Le user a rejoint le channel {channel_to_join}")
                 canal.update_userlist(user(self.user.adresse, self.user.socket, self.user.name))
-                channels[chan_tojoin] = canal
+                channels[channel_to_join] = canal
+                self.user.socket.send(bytes(f"Le user a rejoint le channel {channel_to_join}", 'UTF-8'))
+
             else:
                 print('Mot de passe du canal incorrect')
+                print(f"key: {key}")
                 self.user.socket.send(bytes("Mot de passe du canal incorrect", 'UTF-8'))
 
     def names(self, msg):
@@ -91,14 +96,15 @@ class ThreadUser(threading.Thread):
                 self.user.socket.send(bytes('Canal non trouvé', 'UTF-8'))
 
             else:
-                names_display = [p.name for p in channels[i].userlist]
+                names_display = [p.name for p in channels[channel_name].userlist]
                 names_display = list(set(names_display))
                 names_display.sort()
                 self.user.socket.send(bytes(str(names_display), 'UTF-8'))
 
         else:
-            print(f"Affichage des utilisateurs de tous les canaux")
-            names_display = [p.name for channel in channels.keys() for p in channel.userlist]
+            print(f"Affichage des utilisateurs")
+            # Affichage des utilisateurs de tous les canaux
+            names_display = user_list.keys()
             names_display = list(set(names_display))
             names_display.sort()
             self.user.socket.send(bytes(str(names_display), 'UTF-8'))
@@ -127,7 +133,7 @@ class ThreadUser(threading.Thread):
         split_msg = msg.split()
         target = split_msg[1]
         msg_to_send = msg[len(split_msg[0]) + len(split_msg[1]) + 2::]
-
+        print(f"Message to send: {msg_to_send} in target: {target}")
         # Si c'est un canal
         if target[0] == '#':
             channel_name = target
@@ -186,29 +192,31 @@ class ThreadUser(threading.Thread):
             except (KeyboardInterrupt, OSError):
                 print("Closing thread.")
                 exit(0)
-                break
 
             if msg[0:8] == "nickname":
                 user_name = msg[9::]
-                names = [cl for cl in user_list if cl.name == user_name]
-                print(names)
-                if not names:
+
+                if user_name not in user_list.keys():
                     self.set_username(user_name)
                     print("Username is: ", user_name)
-                    user_list.append(user(self.user.adresse, self.user.socket, self.user.name))
+                    user_list[user_name] = user(self.user.adresse, self.user.socket, self.user.name)
 
                 else:
                     print('Username deja existant')
-                    self.user.socket.send(bytes('/Disconnect', 'UTF-8'))
+                    self.user.socket.send(bytes('Username deja existant', 'UTF-8'))
+                    # disconnect user
+                    self.user.socket.shutdown(socket.SHUT_RDWR)
+                    self.user.socket.close()
+                    break
 
 
-            elif msg == '/list':
+            elif msg == '/list': #done
                 self.list()
 
-            elif msg[0:6] == '/names':
+            elif msg[0:6] == '/names': #done
                 self.names(msg)
 
-            elif msg[0:5] == '/join':
+            elif msg[0:5] == '/join': #done
                 self.join_channel(msg)
 
             elif msg[0:7] == '/invite':

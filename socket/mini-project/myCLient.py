@@ -111,6 +111,7 @@ def send(event=None):
 
     entry_field.delete(0, 'end')
 
+
 def initialize_username():
     user = username_entry.get()
     if user:
@@ -122,7 +123,7 @@ def initialize_username():
         initialize_username_button.config(state='disabled')
 
 top = tk.Tk()
-general_font = ('New roman', 14, 'bold')
+general_font = ('New roman', 10)
 top.option_add('*Font', general_font)
 top.title("Internet Relay Chat")
 
@@ -152,8 +153,8 @@ entry_field_frame = tk.Frame(top)
 entry_field = tk.Entry(entry_field_frame, width=50)
 entry_field.bind("<Return>", send)
 entry_field.pack(side=tk.LEFT)
-send_button = tk.Button(entry_field_frame, text="Send", command=send)
-send_button.pack(side=tk.LEFT)
+# send_button = tk.Button(entry_field_frame, text="Send", command=send)
+# send_button.pack(side=tk.LEFT)
 entry_field_frame.pack(pady=10)
 
 # Initialize username
