@@ -67,11 +67,16 @@ def help_menu():
     msg_list.insert(tk.END, " ________________________________")
 
 def send(event=None):
+    if not username_entry.get():
+        msg_list.insert(tk.END, " Please set your username first.")
+        return
+
     if stream_thread.server_off:
         msg_list.insert(tk.END, " Server is off... ")
         print(" Server is off... ")
         stream_thread.stop()
         client.close()
+
     try:
         to_server = entry_field.get()
         print(f"to_server: {to_server}")
