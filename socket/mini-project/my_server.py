@@ -12,10 +12,11 @@ class user():
 
 
 class channel():
-    def __init__(self, channel_name, key=None):
+    def __init__(self, channel_name, key=None, admin=None):
         self.channel_name = channel_name
         self.key = key
         self.userlist = []
+        self.admin = admin
 
     def get_channel_name(self):
         return self.channel_name
@@ -25,6 +26,10 @@ class channel():
 
     def get_userlist(self):
         return self.userlist
+
+    def get_admin(self):
+        return self.admin
+
 
     def update_userlist(self, user):
         self.userlist.append(user)
@@ -68,7 +73,7 @@ class ThreadUser(threading.Thread):
 
         if channel_to_join not in channels.keys():
             print(f"Création d'un nouveau channel {channel_to_join} avec la clé {key} ")
-            new_channel = channel(channel_to_join, key)
+            new_channel = channel(channel_to_join, key, self.user.name)
             new_channel.update_userlist(user(self.user.adresse, self.user.socket, self.user.name))
             channels[channel_to_join] = new_channel
             self.user.socket.send(bytes(f"Création d'un nouveau channel {channel_to_join} avec la clé {key} ", 'UTF-8'))
@@ -119,10 +124,17 @@ class ThreadUser(threading.Thread):
     def invite(self, msg):
         p_invited = msg[8::]
         print(self.user.name + " invited " + p_invited)
-        own_channels = ["( Channel: " + str(l.channel_name) + ", Password: " + str(l.key) + " )" for l in channels for
-                        cl in l.userlist if cl.name == self.user.name]
-        target_socket = [cl.socket for cl in user_list if cl.name == p_invited]
-        if target_socket != []:
+
+        # Récupération des canaux ou l'utilisateur est admin et des caneax sans admin
+        own_channels = [channel_name for channel_name, channell in channels.items()
+                        if channell.admin == self.user.name or channell.admin is None]
+        print(f"own_channels: {own_channels}")
+
+        # Récupération du socket de l'utilisateur invité
+        target_socket = [userInfo.socket for user_name, userInfo in user_list.items() if user_name == p_invited]
+        print(f"target_socket: {target_socket}")
+
+        if target_socket:
             target_socket[0].send(
                 bytes(self.user.name + " invited you to the channels below :" + str(own_channels), 'UTF-8'))
         else:
