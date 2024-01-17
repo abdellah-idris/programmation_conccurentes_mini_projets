@@ -1,4 +1,5 @@
 import socket
+import sys
 import threading
 
 
@@ -15,7 +16,7 @@ class Channel:
     def __init__(self, channel_name, key=None, admin=None):
         self.channel_name = channel_name
         self.key = key
-        self.userlist = [] # liste des utilisateurs du canal (User)
+        self.user_list = []  # List of users in the channel (User)
         self.admin = admin
 
     def get_channel_name(self):
@@ -24,38 +25,38 @@ class Channel:
     def get_key(self):
         return self.key
 
-    def get_userlist(self):
-        return self.userlist
+    def get_user_list(self):
+        return self.user_list
 
     def get_admin(self):
         return self.admin
 
-    def update_userlist(self, user):
-        self.userlist.append(user)
+    def update_user_list(self, user):
+        self.user_list.append(user)
 
 
 channelsDAO = {}
 userDAO = {}
-threadsDAO = []
+threadsDAO = {}
 
 
 class ThreadUser(threading.Thread):
-    def __init__(self, adresse, clientsocket):
+    def __init__(self, adresse, client_socket):
         threading.Thread.__init__(self)
-        self.user = User(adresse, clientsocket, "Anonymous")
+        self.user = User(adresse, client_socket, "Anonymous")
         self.stop = threading.Event()
         self.away = False
         self.automatic_resp = ''
-        print(f"New thread started for {adresse} at {clientsocket} ")
+        print(f"New thread started for {adresse} at {client_socket} ")
 
-    def stop(self):
+    def stop_thread(self):
         self.stop.set()
 
     def set_username(self, u_name):
         self.user.name = u_name
 
     def list(self):
-        print("affichage de la liste des channels")
+        print("Displaying the list of channels")
         channels_names = set(channelsDAO.keys())
         self.user.socket.send(bytes("Available channels :", 'UTF-8'))
         self.user.socket.send(bytes(str(channels_names), 'UTF-8'))
@@ -68,46 +69,45 @@ class ThreadUser(threading.Thread):
         if len(split_msg) == 3:
             key = split_msg[2]
 
-        print(f"Tentative de rejoindre un channel {channel_to_join} avec la clé {key}")
+        print(f"Attempting to join a channel {channel_to_join} with key {key}")
 
         if channel_to_join not in channelsDAO.keys():
-            print(f"Création d'un nouveau channel {channel_to_join} avec la clé {key} ")
+            print(f"Creating a new channel {channel_to_join} with key {key} ")
             new_channel = Channel(channel_to_join, key, self.user.name)
-            new_channel.update_userlist(User(self.user.adresse, self.user.socket, self.user.name))
+            new_channel.update_user_list(User(self.user.adresse, self.user.socket, self.user.name))
             channelsDAO[channel_to_join] = new_channel
-            self.user.socket.send(bytes(f"Création d'un nouveau channel {channel_to_join} avec la clé {key} ", 'UTF-8'))
-
+            self.user.socket.send(bytes(f"Creating a new channel {channel_to_join} with key {key} ", 'UTF-8'))
 
         else:
             canal = channelsDAO[channel_to_join]
             if canal.get_key() == key:
-                print(f"Le user a rejoint le channel {channel_to_join}")
-                canal.update_userlist(User(self.user.adresse, self.user.socket, self.user.name))
+                print(f"The user has joined the channel {channel_to_join}")
+                canal.update_user_list(User(self.user.adresse, self.user.socket, self.user.name))
                 channelsDAO[channel_to_join] = canal
-                self.user.socket.send(bytes(f"Le user a rejoint le channel {channel_to_join}", 'UTF-8'))
+                self.user.socket.send(bytes(f"The user has joined the channel {channel_to_join}", 'UTF-8'))
 
             else:
-                print('Mot de passe du canal incorrect')
+                print('Incorrect channel password')
                 print(f"key: {key}")
-                self.user.socket.send(bytes("Mot de passe du canal incorrect", 'UTF-8'))
+                self.user.socket.send(bytes("Incorrect channel password", 'UTF-8'))
 
     def names(self, msg):
-        print('Affichage des utilisateurs des canaux')
+        print('Displaying users in channels')
 
         channel_name = msg[7::]
         if channel_name != '':
             if channel_name not in channelsDAO.keys():
-                self.user.socket.send(bytes('Canal non trouvé', 'UTF-8'))
+                self.user.socket.send(bytes('Channel not found', 'UTF-8'))
 
             else:
-                names_display = [p.name for p in channelsDAO[channel_name].userlist]
+                names_display = [p.name for p in channelsDAO[channel_name].user_list]
                 names_display = list(set(names_display))
                 names_display.sort()
                 self.user.socket.send(bytes(str(names_display), 'UTF-8'))
 
         else:
-            print(f"Affichage des utilisateurs")
-            # Affichage des utilisateurs de tous les canaux
+            print(f"Displaying users")
+            # Displaying users in all channels
             names_display = userDAO.keys()
             names_display = list(set(names_display))
             names_display.sort()
@@ -115,82 +115,80 @@ class ThreadUser(threading.Thread):
 
     def send_away(self, msg):
         userDAO[self.user.name].away = not userDAO[self.user.name].away
-        userDAO[self.user.name].automatic_resp = 'Réponse automatique de ' + self.user.name + ' : ' + msg[6::]
+        userDAO[self.user.name].automatic_resp = 'Automatic response from ' + self.user.name + ' : ' + msg[6::]
         self.away = not self.away
-        self.automatic_resp = 'Réponse automatique de ' + self.user.name + ' : ' + msg[6::]
+        self.automatic_resp = 'Automatic response from ' + self.user.name + ' : ' + msg[6::]
 
     def invite(self, msg):
         p_invited = msg[8::]
         print(self.user.name + " invited " + p_invited)
 
         if p_invited in userDAO.keys():
-            # Récupération du socket de l'utilisateur invité
-            target_socket = [userInfo.socket for user_name, userInfo in userDAO.items() if user_name == p_invited]
+            # Retrieving the socket of the invited user
+            target_socket = userDAO[p_invited].socket
             print(f"target_socket: {target_socket}")
 
-            # Récupération des canaux ou l'utilisateur est admin et des canaux sans admin
-            own_channels = {channel_name: channell for channel_name, channell in channelsDAO.items()
-                            if channell.admin == self.user.name or channell.admin is None}
+            # Retrieving channels where the user is admin and channels without admin
+            own_channels = {channel_name: channel for channel_name, channel in channelsDAO.items()
+                            if channel.admin == self.user.name or channel.admin is None}
             print(f"own_channels: {own_channels}")
 
-            # add user to the invited channels
-            for channel_name, channell in own_channels.items():
-                # add user to the invited channels
-                channell.update_userlist(User(self.user.adresse, target_socket[0], p_invited))
-                channelsDAO[channel_name] = channell
+            # Add user to the invited channels
+            for channel_name, channel in own_channels.items():
+                channel.update_user_list(User(self.user.adresse, target_socket, p_invited))
+                channelsDAO[channel_name] = channel
 
-            target_socket[0].send(
-                bytes(f"Vous avez été invité par {self.user.name} dans les canaux {str(set(own_channels.keys()))}", 'UTF-8'))
+            target_socket.send(
+                bytes(f"You have been invited by {self.user.name} in the channels {str(set(own_channels.keys()))}", 'UTF-8'))
         else:
-            print("Le user invité n'existe pas ")
-            self.user.socket.send(bytes("Le user invité n'existe pas ", 'UTF-8'))
+            print("The invited user does not exist ")
+            self.user.socket.send(bytes("The invited user does not exist ", 'UTF-8'))
 
     def msg(self, msg):
-        # TODO : allow character like ?,§,!, etc
         # Send a private message to a user
         split_msg = msg.split()
         target = split_msg[1]
         msg_to_send = msg[len(split_msg[0]) + len(split_msg[1]) + 2::]
-        print(f"Message to send: {msg_to_send} in target: {target}")
+        print(f"Message to send: {msg_to_send} to target: {target}")
 
-        # Si c'est un canal
+        # If it's a channel
         if target[0] == '#':
             channel_name = target
 
             if channel_name in channelsDAO:
                 channel = channelsDAO[channel_name]
-                user_is_in_chat_channel = any(user.name == self.user.name for user in channel.userlist)
+                user_is_in_chat_channel = any(user.name == self.user.name for user in channel.user_list)
 
                 if not user_is_in_chat_channel:
-                    print("Impossible d'envoyer le message dans ce canal car vous n'y appartenez pas")
+                    print("Unable to send the message to this channel as you don't belong to it")
                     self.user.socket.send(
-                        bytes("Impossible d'envoyer le message dans ce canal car vous n'y appartenez pas", 'UTF-8'))
+                        bytes("Unable to send the message to this channel as you don't belong to it", 'UTF-8'))
                 else:
-                    print(f"Envoi du message dans le canal {channel_name}")
-                    target_sockets = [cl.socket for cl in channel.userlist]
-                    for socket in target_sockets:
-                        socket.send(bytes("(" + channel_name + ") " + self.user.name + ": " + msg_to_send, 'UTF-8'))
+                    print(f"Sending the message to the channel {channel_name}")
+                    target_sockets = [cl.socket for cl in channel.user_list]
+                    for sockett in target_sockets:
+                        sockett.send(bytes("(" + channel_name + ") " + self.user.name + ": " + msg_to_send, 'UTF-8'))
             else:
-                print("Le canal spécifié n'existe pas")
-                self.user.socket.send(bytes("Le canal spécifié n'existe pas", 'UTF-8'))
+                print("The specified channel does not exist")
+                self.user.socket.send(bytes("The specified channel does not exist", 'UTF-8'))
 
-        else:  # sinon nickname (donc message privé)
+        else:  # Otherwise, it's a nickname (private message)
             nickname = target
             target_user = userDAO.get(nickname, None)
 
             if target_user:
                 if target_user.away:
-                    print("Le user est absent")
-                    self.user.socket.send(bytes("Le user est absent" + target_user.automatic_resp, 'UTF-8'))
+                    print("The user is away")
+                    self.user.socket.send(bytes("The user is away" + target_user.automatic_resp, 'UTF-8'))
                 else:
                     target_user.socket.send(
                         bytes("Private message from " + self.user.name + ": " + msg_to_send, 'UTF-8'))
             else:
-                self.user.socket.send(bytes("Le user n'existe pas", 'UTF-8'))
+                self.user.socket.send(bytes("The user does not exist", 'UTF-8'))
 
     def run(self):
         global userDAO
-        print("Connection from : ", adresse)
+        print("Connection from : ", self.user.adresse)
         msg = ''
         while True:
             try:
@@ -206,27 +204,26 @@ class ThreadUser(threading.Thread):
                 if user_name not in userDAO.keys():
                     self.set_username(user_name)
                     print("Username is: ", user_name)
-                    userDAO[user_name] = User(self.user.adresse, self.user.socket, self.user.name)
+                    userDAO[user_name] = self.user
 
                 else:
-                    print('Username deja existant')
-                    self.user.socket.send(bytes('Username deja existant', 'UTF-8'))
-                    # disconnect user
+                    print('Username already exists')
+                    self.user.socket.send(bytes('Username already exists', 'UTF-8'))
+                    # Disconnect user
                     self.user.socket.shutdown(socket.SHUT_RDWR)
                     self.user.socket.close()
                     break
 
-
-            elif msg == '/list': #done
+            elif msg == '/list':
                 self.list()
 
-            elif msg[0:6] == '/names': #done
+            elif msg[0:6] == '/names':
                 self.names(msg)
 
-            elif msg[0:5] == '/join': #done
+            elif msg[0:5] == '/join':
                 self.join_channel(msg)
 
-            elif msg[0:7] == '/invite': #done
+            elif msg[0:7] == '/invite':
                 self.invite(msg)
 
             elif msg[0:4] == '/msg':
@@ -236,40 +233,54 @@ class ThreadUser(threading.Thread):
                 self.send_away(msg)
 
         try:
-            print("(", user_name, ")", "Client à: ", adresse, " déconnecté...")
+            print("(", user_name, ")", "Client at: ", self.user.adresse, " disconnected...")
         except UnboundLocalError:
             print("User disconnected.")
 
 
-LOCALHOST = "127.0.0.1"
-PORT = 8080
+def start_server(PORT=8080):
+    LOCALHOST = "127.0.0.1"
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server.bind((LOCALHOST, PORT))
+    print("Server started at: ", LOCALHOST, ":", PORT)
 
-print("Serveur démarré.")
-print("Waiting for client request...")
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((LOCALHOST, PORT))
 
-while True:
-    try:
-        server.listen(2)
-        clientsock, adresse = server.accept()
-        newthread = ThreadUser(adresse, clientsock)
-        newthread.start()
-        threadsDAO.append(newthread)
+    print("Waiting for client request...")
 
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt détecté ...")
-        to_client = '/Disconnect'
+    while True:
         try:
+            server.listen(2)
+            clientsock, adresse = server.accept()
+            newthread = ThreadUser(adresse, clientsock)
+            newthread.start()
+            threadsDAO[newthread.user.name] = newthread
 
-            for k in range(len(userDAO)):
-                print("Sending /Disconnect to user: ", userDAO[k].name)
-                userDAO[k].socket.send(bytes(to_client, 'UTF-8'))
-                userDAO[k].socket.shutdown(socket.SHUT_RDWR)
-                userDAO[k].socket.close()
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt detected ...")
+            to_client = '/Disconnect'
 
-        except OSError:
-            pass
-        exit(0)
+            try:
+                for user_name, user_thread in threadsDAO.items():
+                    print("Sending {} to user: {}".format('/Disconnect', user_name))
+                    user_thread.user.socket.send(bytes(to_client, 'UTF-8'))
+                    user_thread.user.socket.shutdown(socket.SHUT_RDWR)
+                    user_thread.user.socket.close()
+
+            except OSError:
+                pass
+            exit(0)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 2:
+        try:
+            port = int(sys.argv[1])
+            start_server(port)
+        except ValueError:
+            print("Invalid port number. Please provide a valid integer.")
+    else:
+        print("Usage: python my_server.py <port>")
+        print("Using default port 8080")
+        start_server()
