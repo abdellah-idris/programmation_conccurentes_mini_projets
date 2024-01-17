@@ -188,14 +188,14 @@ class ThreadUser(threading.Thread):
 
     def run(self):
         global userDAO
-        print("Connection from : ", self.user.adresse)
-        msg = ''
+        print(f"Connection from:  {self.user.adresse} with username: {self.user.name}")
+        msg = ""
         while True:
             try:
                 data = self.user.socket.recv(1024)
                 msg = data.decode()
             except (KeyboardInterrupt, OSError):
-                print("Closing thread.")
+                print(f"Closing thread for user {self.user.name}")
                 exit(0)
 
             if msg[0:8] == "nickname":
@@ -238,14 +238,14 @@ class ThreadUser(threading.Thread):
             print("User disconnected.")
 
 
-def start_server(PORT=8080):
+def start_server(port=8080):
     LOCALHOST = "127.0.0.1"
 
-    print("Server started at: ", LOCALHOST, ":", PORT)
+    print("Server started at: ", LOCALHOST, ":", port)
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((LOCALHOST, PORT))
+    server.bind((LOCALHOST, port))
 
     print("Waiting for client request...")
 
@@ -253,17 +253,17 @@ def start_server(PORT=8080):
         try:
             server.listen(2)
             clientsock, adresse = server.accept()
-            newthread = ThreadUser(adresse, clientsock)
-            newthread.start()
-            threadsDAO[newthread.user.name] = newthread
+            new_thread = ThreadUser(adresse, clientsock)
+            new_thread.start()
+            threadsDAO[new_thread.user.name] = new_thread
 
         except KeyboardInterrupt:
             print("KeyboardInterrupt detected ...")
-            to_client = '/Disconnect'
+            to_client = '/Disconnected'
 
             try:
                 for user_name, user_thread in threadsDAO.items():
-                    print("Sending {} to user: {}".format('/Disconnect', user_name))
+                    print("Sending {} to user: {}".format('/Disconnected', user_name))
                     user_thread.user.socket.send(bytes(to_client, 'UTF-8'))
                     user_thread.user.socket.shutdown(socket.SHUT_RDWR)
                     user_thread.user.socket.close()
