@@ -141,62 +141,52 @@ class ThreadUser(threading.Thread):
                 channelsDAO[channel_name] = channell
 
             target_socket[0].send(
-                bytes(f"Vous avez été invité par {self.user.name} dans les canaux {own_channels.keys()}", 'UTF-8'))
+                bytes(f"Vous avez été invité par {self.user.name} dans les canaux {str(set(own_channels.keys()))}", 'UTF-8'))
         else:
             print("Le user invité n'existe pas ")
             self.user.socket.send(bytes("Le user invité n'existe pas ", 'UTF-8'))
 
     def msg(self, msg):
+        # TODO : allow character like ?,§,!, etc
         # Send a private message to a user
         split_msg = msg.split()
         target = split_msg[1]
         msg_to_send = msg[len(split_msg[0]) + len(split_msg[1]) + 2::]
         print(f"Message to send: {msg_to_send} in target: {target}")
+
         # Si c'est un canal
         if target[0] == '#':
             channel_name = target
 
-            channel_exists = [1 for i in range(len(channelsDAO))
-                              if channelsDAO[i].channel_name == channel_name]
+            if channel_name in channelsDAO:
+                channel = channelsDAO[channel_name]
+                user_is_in_chat_channel = any(user.name == self.user.name for user in channel.userlist)
 
-            user_is_in_chatchannel = [1 for i in range(len(channelsDAO))
-                                      for j in range(len(channelsDAO[i].userlist))
-                                      if channelsDAO[i].channel_name == channel_name
-                                      and channelsDAO[i].userlist[j].name == self.user.name]
-
-            if channel_exists == []:
+                if not user_is_in_chat_channel:
+                    print("Impossible d'envoyer le message dans ce canal car vous n'y appartenez pas")
+                    self.user.socket.send(
+                        bytes("Impossible d'envoyer le message dans ce canal car vous n'y appartenez pas", 'UTF-8'))
+                else:
+                    print(f"Envoi du message dans le canal {channel_name}")
+                    target_sockets = [cl.socket for cl in channel.userlist]
+                    for socket in target_sockets:
+                        socket.send(bytes("(" + channel_name + ") " + self.user.name + ": " + msg_to_send, 'UTF-8'))
+            else:
                 print("Le canal spécifié n'existe pas")
                 self.user.socket.send(bytes("Le canal spécifié n'existe pas", 'UTF-8'))
 
-            elif user_is_in_chatchannel == []:
-                print("Impossible d'envoyer le message dans ce canal car vous n'y appartenez pas")
-                self.user.socket.send(
-                    bytes("Impossible d'envoyer le message dans ce canal car vous n'y appartenez pas", 'UTF-8'))
-            else:
-
-                target_sockets = [cl.socket for i in range(len(channelsDAO))
-                                  for cl in channelsDAO[i].userlist
-                                  if channelsDAO[i].channel_name == channel_name]
-                for socket in target_sockets:
-                    socket.send(bytes("(" + channel_name + ") " + self.user.name + ": " + msg_to_send, 'UTF-8'))
-
-
         else:  # sinon nickname (donc message privé)
             nickname = target
-            target_user = [cl for cl in userDAO if cl.name == nickname]
+            target_user = userDAO.get(nickname, None)
 
-            if target_user != []:
-                print(target_user[0].name)
-                if target_user[0].away == True:
-
-                    self.user.socket.send(bytes(target_user[0].automatic_resp, 'UTF-8'))
-
+            if target_user:
+                if target_user.away:
+                    print("Le user est absent")
+                    self.user.socket.send(bytes("Le user est absent" + target_user.automatic_resp, 'UTF-8'))
                 else:
-
-                    target_user[0].socket.send(bytes("Private message from " + self.user.name + "): " +
-                                                     msg_to_send, 'UTF-8'))
-
-            else:  # Utilisateur non trouvé
+                    target_user.socket.send(
+                        bytes("Private message from " + self.user.name + ": " + msg_to_send, 'UTF-8'))
+            else:
                 self.user.socket.send(bytes("Le user n'existe pas", 'UTF-8'))
 
     def run(self):
