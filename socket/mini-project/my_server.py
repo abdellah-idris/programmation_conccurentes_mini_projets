@@ -114,9 +114,8 @@ class ThreadUser(threading.Thread):
             self.user.socket.send(bytes(str(names_display), 'UTF-8'))
 
     def send_away(self, msg):
-        ind = [i for i in range(len(userDAO)) if userDAO[i].name == self.user.name]
-        userDAO[ind[0]].away = not userDAO[ind[0]].away
-        userDAO[ind[0]].automatic_resp = 'Réponse automatique de ' + userDAO[ind[0]].name + ' : ' + msg[6::]
+        userDAO[self.user.name].away = not userDAO[self.user.name].away
+        userDAO[self.user.name].automatic_resp = 'Réponse automatique de ' + self.user.name + ' : ' + msg[6::]
         self.away = not self.away
         self.automatic_resp = 'Réponse automatique de ' + self.user.name + ' : ' + msg[6::]
 
