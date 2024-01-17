@@ -1,33 +1,157 @@
 import socket
 import threading
-import re
 import tkinter as tk
-
-SERVER = "127.0.0.1"
-PORT = 8080
-
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect((SERVER, PORT))
-client.setblocking(True)
-
-commands_regex = { "/help"  : "^/help$",
-                   "/list"  : "^/list$",
-                   "/names" : "^/names$|^/names #[a-zA-Z0-9_]+$",
-                   "/invite": "^/invite [a-zA-Z0-9_]+$",
-                   "/msg"   : "^/msg #*[a-zA-Z0-9_]+ .+", #allow character like ?,§,!, etc
-                   "/away"  : "^/away$|^/away [a-zA-Z0-9_]+",
-                   "/join"  : "^/join #[a-zA-Z0-9_]+$|^/join #[a-zA-Z0-9_]+ [a-zA-Z0-9_]+$"
-                }
+import re
+from argparse import ArgumentParser, SUPPRESS
 
 
-commands = ["/help", "/list", "/names", "/invite", "/msg", "/away", "/join"]
+class IrcClient:
+    def __init__(self, server, port):
+        self.server = server
+        self.port = port
+        self.commands_regex = {
+            "/help": "^/help$",
+            "/list": "^/list$",
+            "/names": "^/names$|^/names #[a-zA-Z0-9_]+$",
+            "/invite": "^/invite [a-zA-Z0-9_]+$",
+            "/msg": "^/msg #*[a-zA-Z0-9_]+ .+",  # allow characters like ?,§,!, etc
+            "/away": "^/away$|^/away [a-zA-Z0-9_]+",
+            "/join": "^/join #[a-zA-Z0-9_]+$|^/join #[a-zA-Z0-9_]+ [a-zA-Z0-9_]+$"
+        }
+        self.commands = ["/help", "/list", "/names", "/invite", "/msg", "/away", "/join"]
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket.connect((self.server, self.port))
+        self.client_socket.setblocking(True)
+        self.stream_thread = None
+
+    def run(self):
+        self.initialize_gui()
+        self.stream_thread = IrcThread(self.client_socket, self.msg_list)
+        self.stream_thread.start()
+        self.gui.mainloop()
+
+    def initialize_gui(self):
+        self.gui = tk.Tk()
+        self.gui.title("Internet Relay Chat")
+
+        # Username Entry
+        username_frame = tk.Frame(self.gui)
+        username_label = tk.Label(username_frame, text="Username:")
+        username_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        self.username_entry = tk.Entry(username_frame)
+        self.username_entry.grid(row=0, column=1, padx=5, pady=5)
+        username_frame.pack(pady=5)
+
+        # Messages Frame
+        messages_frame = tk.Frame(self.gui)
+        bar_vertical = tk.Scrollbar(messages_frame, orient=tk.VERTICAL)
+        bar_vertical.pack(side=tk.RIGHT, fill=tk.Y)
+        bar_horizontal = tk.Scrollbar(messages_frame, orient=tk.HORIZONTAL)
+        bar_horizontal.pack(side=tk.BOTTOM, fill=tk.X)
+        self.msg_list = tk.Listbox(messages_frame, height=20, width=50, yscrollcommand=bar_vertical.set, xscrollcommand=bar_horizontal.set)
+        bar_vertical.config(command=self.msg_list.yview)
+        bar_horizontal.config(command=self.msg_list.xview)
+        self.msg_list.pack(side=tk.LEFT, fill=tk.BOTH)
+        self.msg_list.pack()
+        messages_frame.pack()
+
+        # Entry Field Frame
+        entry_field_frame = tk.Frame(self.gui)
+        self.entry_field = tk.Entry(entry_field_frame, width=40)
+        self.entry_field.bind("<Return>", self.send)
+        self.entry_field.grid(row=0, column=0, padx=5, pady=5)
+        entry_field_frame.pack(pady=10)
+
+        # Initialize username
+        initialize_username_button = tk.Button(self.gui, text="Set Username", command=self.initialize_username)
+        initialize_username_button.pack(pady=5)
+
+        self.gui.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def send(self, event=None):
+        if not self.username_entry.get():
+            self.msg_list.insert(tk.END, " Please set your username first.")
+            return
+
+        if self.stream_thread.server_off:
+            self.msg_list.insert(tk.END, " Server is off... ")
+            print(" Server is off... ")
+            self.stream_thread.stop()
+            self.client_socket.close()
+
+        try:
+            to_server = self.entry_field.get()
+            print(f"to_server: {to_server}")
+            if bool(re.match('^ *$', to_server)):
+                print("Please enter a command/message")
+                self.msg_list.insert(tk.END, " Please enter a command/message")
+            else:
+                self.msg_list.insert(tk.END, to_server)
+                print(to_server)
+
+                if self.is_valid_command(to_server):
+                    if to_server.split()[0] == '/help':
+                        self.help_menu()
+                    else:
+                        self.client_socket.sendall(bytes(to_server, 'UTF-8'))
+                else:
+                    self.msg_list.insert(tk.END, ' Unavailable or incorrect command! ')
+                    print('Unavailable or incorrect command! ')
+
+        except (KeyboardInterrupt, ValueError, BrokenPipeError):
+            print("Server disconnected...")
+            self.msg_list.insert(tk.END, " Server disconnected...")
+
+            to_server = '/Disconnect'
+            try:
+                self.client_socket.sendall(bytes(to_server, 'UTF-8'))
+            except (KeyboardInterrupt, ValueError, BrokenPipeError):
+                pass
+            finally:
+                self.stream_thread.stop()
+                self.client_socket.close()
+
+        self.entry_field.delete(0, 'end')
+
+    def is_valid_command(self, command):
+        for pattern in self.commands_regex.values():
+            if re.match(pattern, command):
+                return True
+        return False
+
+    def help_menu(self):
+        self.msg_list.insert(tk.END, " Available commands:")
+        self.msg_list.insert(tk.END, "   /away [message]")
+        self.msg_list.insert(tk.END, "   /help")
+        self.msg_list.insert(tk.END, "   /invite <nick>")
+        self.msg_list.insert(tk.END, "   /join <canal> [clé]")
+        self.msg_list.insert(tk.END, "   /list")
+        self.msg_list.insert(tk.END, "   /msg [canal|nick] message ")
+        self.msg_list.insert(tk.END, "   /names [channel]")
+        self.msg_list.insert(tk.END, " ________________________________")
+
+    def initialize_username(self):
+        user = self.username_entry.get()
+        if user:
+            to_server = "nickname:" + user
+            self.client_socket.sendall(bytes(to_server, 'UTF-8'))
+            self.msg_list.insert(tk.END, f"User: {user}")
+            print(f"User: {to_server[9::]}")
+            self.username_entry.config(state='disabled')
+
+    def on_closing(self):
+        self.stream_thread.stop()
+        self.client_socket.close()
+        self.gui.destroy()
+
 
 class IrcThread(threading.Thread):
-    def __init__(self, client):
+    def __init__(self, client_socket, msg_list):
         threading.Thread.__init__(self)
         self.stop_event = threading.Event()
-        self.client = client
+        self.client_socket = client_socket
         self.server_off = False
+        self.msg_list = msg_list
 
     def stop(self):
         self.stop_event.set()
@@ -35,12 +159,12 @@ class IrcThread(threading.Thread):
     def run(self):
         try:
             while not self.stop_event.is_set():
-                data = self.client.recv(1024)
+                data = self.client_socket.recv(1024)
                 if not data:
                     self.server_off = True
                     break
                 msg = data.decode()
-                msg_list.insert(tk.END, ' ' + msg)
+                self.msg_list.insert(tk.END, ' ' + msg)
                 if msg == '/Disconnect' or msg == '':
                     print("Server disconnected...")
                     self.server_off = True
@@ -52,124 +176,16 @@ class IrcThread(threading.Thread):
             self.server_off = True
 
         if self.server_off:
-            self.client.shutdown(socket.SHUT_RDWR)
-            self.client.close()
-
-def help_menu():
-    msg_list.insert(tk.END, " Available commands:")
-    msg_list.insert(tk.END, "   /away [message]")
-    msg_list.insert(tk.END, "   /help")
-    msg_list.insert(tk.END, "   /invite <nick>")
-    msg_list.insert(tk.END, "   /join <canal> [clé]")
-    msg_list.insert(tk.END, "   /list")
-    msg_list.insert(tk.END, "   /msg [canal|nick] message ")
-    msg_list.insert(tk.END, "   /names [channel]")
-    msg_list.insert(tk.END, " ________________________________")
-
-def send(event=None):
-    if not username_entry.get():
-        msg_list.insert(tk.END, " Please set your username first.")
-        return
-
-    if stream_thread.server_off:
-        msg_list.insert(tk.END, " Server is off... ")
-        print(" Server is off... ")
-        stream_thread.stop()
-        client.close()
-
-    try:
-        to_server = entry_field.get()
-        print(f"to_server: {to_server}")
-        if bool(re.match('^ *$', to_server)):
-            print("Please enter a command/message")
-            msg_list.insert(tk.END, " Please enter a command/message")
-        else:
-            msg_list.insert(tk.END, to_server)
-            print(to_server)
-
-            if to_server.split()[0] in commands and re.match(commands_regex[to_server.split()[0]], to_server):
-                if to_server.split()[0] == '/help':
-                    help_menu()
-                else:
-                    client.sendall(bytes(to_server, 'UTF-8'))
-            else:
-                msg_list.insert(tk.END, ' Unavailable or incorrect command! ')
-                print('Unavailable or incorrect command! ')
-
-    except (KeyboardInterrupt, ValueError, BrokenPipeError):
-        print("Server disconnected...")
-        msg_list.insert(tk.END, " Server disconnected...")
-
-        to_server = '/Disconnect'
-        try:
-            client.sendall(bytes(to_server, 'UTF-8'))
-        except (KeyboardInterrupt, ValueError, BrokenPipeError):
-            pass
-        finally:
-            stream_thread.stop()
-            client.close()
-
-    entry_field.delete(0, 'end')
+            self.client_socket.shutdown(socket.SHUT_RDWR)
+            self.client_socket.close()
 
 
-def initialize_username():
-    user = username_entry.get()
-    if user:
-        to_server = "nickname:" + user
-        client.sendall(bytes(to_server, 'UTF-8'))
-        msg_list.insert(tk.END, f"User: {user}")
-        print(f"User: {to_server[9::]}")
-        username_entry.config(state='disabled')
-        initialize_username_button.config(state='disabled')
+if __name__ == "__main__":
+    # Argument Parser
+    parser = ArgumentParser(description="Internet Relay Chat Client", usage=SUPPRESS)
+    parser.add_argument("port", nargs="?", type=int, default=8080, help="Port to connect to (default is 8080)")
+    args = parser.parse_args()
 
-top = tk.Tk()
-general_font = ('New roman', 10)
-top.option_add('*Font', general_font)
-top.title("Internet Relay Chat")
-
-# Username Entry
-username_frame = tk.Frame(top)
-username_label = tk.Label(username_frame, text="Username:")
-username_label.pack(side=tk.LEFT)
-username_entry = tk.Entry(username_frame)
-username_entry.pack(side=tk.LEFT)
-username_frame.pack(pady=5)
-
-# Messages Frame
-messages_frame = tk.Frame(top)
-bar_vertical = tk.Scrollbar(messages_frame, orient=tk.VERTICAL)
-bar_vertical.pack(side=tk.RIGHT, fill=tk.Y)
-bar_horizental = tk.Scrollbar(messages_frame, orient=tk.HORIZONTAL)
-bar_horizental.pack(side=tk.BOTTOM, fill=tk.X)
-msg_list = tk.Listbox(messages_frame, height=20, width=70, yscrollcommand=bar_vertical.set, xscrollcommand=bar_horizental.set)
-bar_vertical.config(command=msg_list.yview)
-bar_horizental.config(command=msg_list.xview)
-msg_list.pack(side=tk.LEFT, fill=tk.BOTH)
-msg_list.pack()
-messages_frame.pack()
-
-# Entry Field Frame
-entry_field_frame = tk.Frame(top)
-entry_field = tk.Entry(entry_field_frame, width=50)
-entry_field.bind("<Return>", send)
-entry_field.pack(side=tk.LEFT)
-# send_button = tk.Button(entry_field_frame, text="Send", command=send)
-# send_button.pack(side=tk.LEFT)
-entry_field_frame.pack(pady=10)
-
-# Initialize username
-initialize_username_button = tk.Button(top, text="Set Username", command=initialize_username)
-initialize_username_button.pack(pady=5)
-
-def on_closing():
-    stream_thread.stop()
-    client.close()
-    top.destroy()
-
-top.protocol("WM_DELETE_WINDOW", on_closing)
-
-my_msg = tk.StringVar()
-stream_thread = IrcThread(client)
-stream_thread.start()
-
-tk.mainloop()
+    LOCALHOST = "127.0.0.1"
+    client_app = IrcClient(LOCALHOST, args.port)
+    client_app.run()
