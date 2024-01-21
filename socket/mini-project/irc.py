@@ -14,7 +14,7 @@ client.setblocking(True)
 commands_regex = { "/help"  : "^/help$",
                    "/list"  : "^/list$",
                    "/names" : "^/names$|^/names #[a-zA-Z0-9_]+$",
-                   "/invite": "^/invite [a-zA;:-Z0-9_]+$",
+                   "/invite": "^/invite [a-zA-Z0-9_]+$",
                    "/msg"   : "^/msg #*[a-zA-Z0-9_]+ [a-zA-Z0-9_]+",
                    "/away"  : "^/away$|^/away [a-zA-Z0-9_]+",
                    "/join"  : "^/join #[a-zA-Z0-9_]+$|^/join #[a-zA-Z0-9_]+ [a-zA-Z0-9_]+$"
