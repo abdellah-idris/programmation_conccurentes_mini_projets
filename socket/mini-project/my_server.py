@@ -251,7 +251,7 @@ def start_server(port=8080):
 
     while True:
         try:
-            server.listen(2)
+            server.listen() # Listen for incoming connections
             clientsock, adresse = server.accept()
             new_thread = ThreadUser(adresse, clientsock)
             new_thread.start()
