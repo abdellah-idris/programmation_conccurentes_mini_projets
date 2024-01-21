@@ -4,12 +4,13 @@ import threading
 
 
 class User:
-    def __init__(self, adresse, clientsocket, name):
+    def __init__(self, adresse, client_socket, port, name):
         self.adresse = adresse
-        self.socket = clientsocket
+        self.socket = client_socket
         self.name = name
         self.away = False
         self.automatic_resp = ''
+        self.connected_server = port
 
 
 class Channel:
@@ -43,11 +44,11 @@ threadsDAO = {}
 class ThreadUser(threading.Thread):
     def __init__(self, adresse, client_socket):
         threading.Thread.__init__(self)
-        self.user = User(adresse, client_socket, "Anonymous")
+        self.user = User(adresse, client_socket, client_socket.getsockname()[1], None)
         self.stop = threading.Event()
         self.away = False
         self.automatic_resp = ''
-        print(f"New thread started for {adresse} at {client_socket} ")
+        print(f"New thread started on port :{client_socket.getsockname()[1]} ")
 
     def stop_thread(self):
         self.stop.set()
@@ -74,7 +75,7 @@ class ThreadUser(threading.Thread):
         if channel_to_join not in channelsDAO.keys():
             print(f"Creating a new channel {channel_to_join} with key {key} ")
             new_channel = Channel(channel_to_join, key, self.user.name)
-            new_channel.update_user_list(User(self.user.adresse, self.user.socket, self.user.name))
+            new_channel.update_user_list(User(self.user.adresse, self.user.socket, self.user.connected_server ,self.user.name))
             channelsDAO[channel_to_join] = new_channel
             self.user.socket.send(bytes(f"Creating a new channel {channel_to_join} with key {key} ", 'UTF-8'))
 
@@ -82,7 +83,7 @@ class ThreadUser(threading.Thread):
             canal = channelsDAO[channel_to_join]
             if canal.get_key() == key:
                 print(f"The user has joined the channel {channel_to_join}")
-                canal.update_user_list(User(self.user.adresse, self.user.socket, self.user.name))
+                canal.update_user_list(User(self.user.adresse, self.user.socket, self.user.connected_server ,self.user.name))
                 channelsDAO[channel_to_join] = canal
                 self.user.socket.send(bytes(f"The user has joined the channel {channel_to_join}", 'UTF-8'))
 
@@ -97,7 +98,7 @@ class ThreadUser(threading.Thread):
         channel_name = msg[7::]
         if channel_name != '':
             if channel_name not in channelsDAO.keys():
-                self.user.socket.send(bytes('Channel not found', 'UTF-8'))
+                self.user.socket.send(bytes('The specified channel dont exists', 'UTF-8'))
 
             else:
                 names_display = [p.name for p in channelsDAO[channel_name].user_list]
@@ -126,6 +127,8 @@ class ThreadUser(threading.Thread):
         if p_invited in userDAO.keys():
             # Retrieving the socket of the invited user
             target_socket = userDAO[p_invited].socket
+            connected_server = userDAO[p_invited].connected_server
+
             print(f"target_socket: {target_socket}")
 
             # Retrieving channels where the user is admin and channels without admin
@@ -135,11 +138,15 @@ class ThreadUser(threading.Thread):
 
             # Add user to the invited channels
             for channel_name, channel in own_channels.items():
-                channel.update_user_list(User(self.user.adresse, target_socket, p_invited))
+                channel.update_user_list(User(self.user.adresse, target_socket, connected_server ,p_invited))
                 channelsDAO[channel_name] = channel
 
-            target_socket.send(
-                bytes(f"You have been invited by {self.user.name} in the channels {str(set(own_channels.keys()))}", 'UTF-8'))
+            if len(own_channels) > 0:
+                target_socket.send(bytes(f"You have been invited by {self.user.name} in the channels {str(set(own_channels.keys()))}", 'UTF-8'))
+            else:
+                # inform user that three is no channel to invite him to
+                self.user.socket.send(bytes(f"There is no channel to invite the user {p_invited}", 'UTF-8'))
+
         else:
             print("The invited user does not exist ")
             self.user.socket.send(bytes("The invited user does not exist ", 'UTF-8'))
@@ -188,7 +195,7 @@ class ThreadUser(threading.Thread):
 
     def run(self):
         global userDAO
-        print(f"Connection from:  {self.user.adresse} with username: {self.user.name}")
+        print(f"Connection from:  {self.user.adresse}")
         msg = ""
         while True:
             try:
@@ -203,7 +210,7 @@ class ThreadUser(threading.Thread):
 
                 if user_name not in userDAO.keys():
                     self.set_username(user_name)
-                    print("Username is: ", user_name)
+                    print(f"User {user_name} connected")
                     userDAO[user_name] = self.user
 
                 else:
