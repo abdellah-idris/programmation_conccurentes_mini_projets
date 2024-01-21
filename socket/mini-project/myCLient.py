@@ -6,9 +6,10 @@ from argparse import ArgumentParser, SUPPRESS
 
 
 class IrcClient:
-    def __init__(self, server, port):
+    def __init__(self, server, port, username):
         self.server = server
         self.port = port
+        self.username = username
         self.commands_regex = {
             "/help": "^/help$",
             "/list": "^/list$",
@@ -28,19 +29,12 @@ class IrcClient:
         self.initialize_gui()
         self.stream_thread = IrcThread(self.client_socket, self.msg_list)
         self.stream_thread.start()
+        self.initialize_username()
         self.gui.mainloop()
 
     def initialize_gui(self):
         self.gui = tk.Tk()
         self.gui.title("Internet Relay Chat")
-
-        # Username Entry
-        username_frame = tk.Frame(self.gui)
-        username_label = tk.Label(username_frame, text="Username:")
-        username_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
-        self.username_entry = tk.Entry(username_frame)
-        self.username_entry.grid(row=0, column=1, padx=5, pady=5)
-        username_frame.pack(pady=5)
 
         # Messages Frame
         messages_frame = tk.Frame(self.gui)
@@ -62,17 +56,9 @@ class IrcClient:
         self.entry_field.grid(row=0, column=0, padx=5, pady=5)
         entry_field_frame.pack(pady=10)
 
-        # Initialize username
-        initialize_username_button = tk.Button(self.gui, text="Set Username", command=self.initialize_username)
-        initialize_username_button.pack(pady=5)
-
         self.gui.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def send(self, event=None):
-        if not self.username_entry.get():
-            self.msg_list.insert(tk.END, " Please set your username first.")
-            return
-
         if self.stream_thread.server_off:
             self.msg_list.insert(tk.END, " Server is off... ")
             print(" Server is off... ")
@@ -131,13 +117,11 @@ class IrcClient:
         self.msg_list.insert(tk.END, " ________________________________")
 
     def initialize_username(self):
-        user = self.username_entry.get()
-        if user:
-            to_server = "nickname:" + user
-            self.client_socket.sendall(bytes(to_server, 'UTF-8'))
-            self.msg_list.insert(tk.END, f"User: {user}")
-            print(f"User: {to_server[9::]}")
-            self.username_entry.config(state='disabled')
+        to_server = "nickname:" + self.username
+        self.client_socket.sendall(bytes(to_server, 'UTF-8'))
+        self.msg_list.insert(tk.END, f"User: {self.username}")
+        print(f"User: {self.username}")
+        self.entry_field.config(state='normal')
 
     def on_closing(self):
         self.stream_thread.stop()
@@ -183,9 +167,10 @@ class IrcThread(threading.Thread):
 if __name__ == "__main__":
     # Argument Parser
     parser = ArgumentParser(description="Internet Relay Chat Client", usage=SUPPRESS)
-    parser.add_argument("port", nargs="?", type=int, default=8080, help="Port to connect to (default is 8080)")
+    parser.add_argument("username", type=str, help="Username")
+    parser.add_argument("port", type=int, help="Port to connect to")
     args = parser.parse_args()
 
     LOCALHOST = "127.0.0.1"
-    client_app = IrcClient(LOCALHOST, args.port)
+    client_app = IrcClient(LOCALHOST, args.port, args.username)
     client_app.run()
