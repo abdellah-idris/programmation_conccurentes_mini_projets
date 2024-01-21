@@ -58,8 +58,11 @@ class ThreadUser(threading.Thread):
     def list(self):
         print("Displaying the list of channels")
         channels_names = set(channelsDAO.keys())
-        self.user.socket.send(bytes("Available channels :", 'UTF-8'))
-        self.user.socket.send(bytes(str(channels_names), 'UTF-8'))
+        if len(channels_names) == 0:
+            self.user.socket.send(bytes("No channel available", 'UTF-8'))
+        else:
+            self.user.socket.send(bytes("Available channels :", 'UTF-8'))
+            self.user.socket.send(bytes(str(channels_names), 'UTF-8'))
 
     def join_channel(self, msg):
         split_msg = msg.split()
