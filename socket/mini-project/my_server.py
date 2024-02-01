@@ -1,18 +1,132 @@
+import json
 import socket
 import sys
 import threading
+import time
+
+from common import utils
+
+LOCALHOSTT = "127.0.0.1"
+
+# global variables shred between threads (servers)
+channelsDAO = {}
+userDAO = {}
+threadsDAO = {}
+serversDAO = {}
+inter_server_port = 9999
+
+
+
+
+
+class Server(threading.Thread):
+    def __init__(self, port_number):
+        threading.Thread.__init__(self)
+        self.port_number = port_number
+
+    def run(self):
+        global channelsDAO
+        global userDAO
+        global threadsDAO
+        global serversDAO
+        global LOCALHOSTT
+
+        print("Server started at: ", LOCALHOSTT, ":", self.port_number)
+
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((LOCALHOSTT, self.port_number))
+
+        print(f"{self.port_number}: Waiting for client request...")
+
+        while True:
+            try:
+                server.listen()  # Listen for incoming connections
+                clientsock, adresse = server.accept()
+                new_thread = ThreadUser(adresse, clientsock)
+                new_thread.start()
+                print(f"{self.port_number}: new user: {new_thread.user.name}")
+
+            except KeyboardInterrupt:
+                print("KeyboardInterrupt detected ...")
+                to_client = '/Disconnected'
+
+                try:
+                    for user_name, user_thread in threadsDAO.items():
+                        print("Sending {} to user: {}".format('/Disconnected', user_name))
+                        user_thread.user.socket.send(bytes(to_client, 'UTF-8'))
+                        user_thread.user.socket.shutdown(socket.SHUT_RDWR)
+                        user_thread.user.socket.close()
+
+                except OSError:
+                    pass
+                exit(0)
+
+class InterServer(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.port_number = 9999
+
+    global threadsDAO
+    global LOCALHOSTT
+
+    def set_port_number(self, port_arg):
+        self.port_number = port_arg
+
+    def get_port_number(self):
+        return self.port_number
+
+    def handle_inter_server_communication(self, client_socket):
+        print("Handling inter server communication...")
+        data = client_socket.recv(1024)
+        message = json.loads(data.decode('UTF-8'))
+
+        command = message.get("command")
+        print(command)
+        if command == "list":
+            content = message.get("content")
+            # Process the inter-server message as needed
+            print(f"Received inter-server message: {content}")
+            print(f"sender: {message.get('sender')}")
+            print(f"channel_name: {message.get('channel_name')}")
+            print(f"server_port: {message.get('server_port')}")
+            print(f"threadsDAO: {threadsDAO.keys()}")
+            # Send the message to all connected clients that are in different servers
+            for user_name, user_thread in threadsDAO.items():
+                if user_name != message.get("sender"):
+                    user_thread.user.socket.send(bytes(content, 'UTF-8'))
+
+        client_socket.close()
+    def run(self):
+        print(f"Starting inter server : {LOCALHOSTT} : {self.port_number}")
+
+        inter_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        inter_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        inter_server_socket.bind((LOCALHOSTT, self.port_number))
+        inter_server_socket.listen()
+
+        print(f"{self.port_number}: Waiting for client request...")
+
+        while True:
+            print(f"{self.port_number}:  Listened to communication")
+            client_socket, client_address = inter_server_socket.accept()
+            inter_server_thread = threading.Thread(target=self.handle_inter_server_communication, args=(client_socket, ))
+            inter_server_thread.start()
 
 
 class User:
+    # A class with basic user information
     def __init__(self, adresse, clientsocket, name):
         self.adresse = adresse
         self.socket = clientsocket
+        self.port = clientsocket.getsockname()[1]
         self.name = name
         self.away = False
         self.automatic_resp = ''
 
 
 class Channel:
+    # Manages channel information and user lists within the channel.
     def __init__(self, channel_name, key=None, admin=None):
         self.channel_name = channel_name
         self.key = key
@@ -35,12 +149,10 @@ class Channel:
         self.user_list.append(user)
 
 
-channelsDAO = {}
-userDAO = {}
-threadsDAO = {}
-
-
 class ThreadUser(threading.Thread):
+    # Handles user threading for messages and server communication.
+
+
     def __init__(self, adresse, client_socket):
         threading.Thread.__init__(self)
         self.user = User(adresse, client_socket, "Anonymous")
@@ -48,6 +160,30 @@ class ThreadUser(threading.Thread):
         self.away = False
         self.automatic_resp = ''
         print(f"New thread started for {adresse} at {client_socket} ")
+
+    def send_inter_server_message(self, command, content, sender=None, channel_name=None, server_port = None):
+        # send message to server port 9999 (inter-server communication)
+        inter_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            # Connect to the server
+            inter_server_socket.connect(("127.0.0.1", inter_server_port))
+
+            # Prepare the message
+            message = json.dumps({"command": command, "content": content})
+
+            # Send the message
+            inter_server_socket.sendall(message.encode('UTF-8'))
+
+        except socket.error as e:
+            print(f"Failed to send inter-server message: {e}")
+            # todo check if the server is up else change the inter-server port
+            # delete died server from the list of servers
+            # change the port
+
+        finally:
+            # Close the connection
+            inter_server_socket.close()
+
 
     def stop_thread(self):
         self.stop.set()
@@ -60,9 +196,11 @@ class ThreadUser(threading.Thread):
         channels_names = set(channelsDAO.keys())
         if len(channels_names) == 0:
             self.user.socket.send(bytes("No channel available", 'UTF-8'))
+            self.send_inter_server_message("list","No channel available", self.user.name, None, self.user.port)
         else:
             self.user.socket.send(bytes("Available channels :", 'UTF-8'))
             self.user.socket.send(bytes(str(channels_names), 'UTF-8'))
+            self.send_inter_server_message("list", channels_names, self.user.name, None, self.user.port)
 
     def join_channel(self, msg):
         split_msg = msg.split()
@@ -190,7 +328,13 @@ class ThreadUser(threading.Thread):
                 self.user.socket.send(bytes("The user does not exist", 'UTF-8'))
 
     def run(self):
+        global inter_server_port
+        global LOCALHOSTT
+        global channelsDAO
         global userDAO
+        global threadsDAO
+        global serversDAO
+
         print(f"Connection from:  {self.user.adresse} with username: {self.user.name}")
         msg = ""
         while True:
@@ -208,6 +352,9 @@ class ThreadUser(threading.Thread):
                     self.set_username(user_name)
                     print("Username is: ", user_name)
                     userDAO[user_name] = self.user
+                    threadsDAO[user_name] = ThreadUser(self.user.adresse, self.user.socket)
+
+                    print(f"verifying user thread {threadsDAO.keys()}")
 
                 else:
                     print('Username already exists')
@@ -241,49 +388,32 @@ class ThreadUser(threading.Thread):
             print("User disconnected.")
 
 
-def start_server(port=8080):
-    LOCALHOST = "127.0.0.1"
 
-    print("Server started at: ", LOCALHOST, ":", port)
-
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((LOCALHOST, port))
-
-    print("Waiting for client request...")
-
-    while True:
-        try:
-            server.listen() # Listen for incoming connections
-            clientsock, adresse = server.accept()
-            new_thread = ThreadUser(adresse, clientsock)
-            new_thread.start()
-            threadsDAO[new_thread.user.name] = new_thread
-
-        except KeyboardInterrupt:
-            print("KeyboardInterrupt detected ...")
-            to_client = '/Disconnected'
-
-            try:
-                for user_name, user_thread in threadsDAO.items():
-                    print("Sending {} to user: {}".format('/Disconnected', user_name))
-                    user_thread.user.socket.send(bytes(to_client, 'UTF-8'))
-                    user_thread.user.socket.shutdown(socket.SHUT_RDWR)
-                    user_thread.user.socket.close()
-
-            except OSError:
-                pass
-            exit(0)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2:
-        try:
-            port = int(sys.argv[1])
-            start_server(port)
-        except ValueError:
-            print("Invalid port number. Please provide a valid integer.")
+    # Start the inter-server communication thread
+    # Check if port 9999 is available
+    if utils.check_port(9999):
+        inter_server = InterServer()
+        inter_server.start()
+        time.sleep(0.1)
+
     else:
-        print("Usage: python my_server.py <port>")
-        print("Using default port 8080")
-        start_server()
+        print("Inter server is already running.")
+
+    # start server
+    if len(sys.argv) >= 2:
+        for port in sys.argv[1:]:
+            try:
+                if utils.check_port(int(port)):
+                    server = Server(int(port))
+                    server.start()
+                    time.sleep(0.1)
+
+                else:
+                    print(f"Server already running on port: {port}")
+
+            except ValueError:
+                print("Invalid port number. Please provide a valid integer.")
+
