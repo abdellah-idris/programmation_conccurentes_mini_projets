@@ -61,7 +61,7 @@ class IrcClient:
     def send(self, event=None):
         if self.stream_thread.server_off:
             self.msg_list.insert(tk.END, " Server is off... ")
-            print(" Server is off... ")
+            print(" Server is off... Please Make sur to reconnect")
             self.stream_thread.stop()
             self.client_socket.close()
 
@@ -172,5 +172,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     LOCALHOST = "127.0.0.1"
-    client_app = IrcClient(LOCALHOST, args.port, args.username)
+    client_app = IrcClient(LOCALHOST, 8080, "celi80")
     client_app.run()

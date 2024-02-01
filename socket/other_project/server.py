@@ -220,12 +220,12 @@ class ThreadUser(threading.Thread):
         except UnboundLocalError:
             print("User disconnected.")
 
-LOCALHOSTT = "127.0.0.1"
+LOCALHOST = "127.0.0.1"
 PORT = 8080
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server.bind((LOCALHOSTT, PORT))
+server.bind((LOCALHOST, PORT))
 
 print("Serveur démarré.")
 print("Waiting for client request...")
