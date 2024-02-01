@@ -2,12 +2,10 @@ import socket
 import sys
 import threading
 import time
-
 from common import utils
 
-LOCALHOST = "127.0.0.1"
-
 # global variables shred between threads (servers)
+LOCALHOST = "127.0.0.1"
 channelsDAO = {}
 userDAO = {}
 threadsDAO = {}
@@ -52,7 +50,6 @@ class Server(threading.Thread):
                 except OSError:
                     pass
                 exit(0)
-
 
 
 class Channel:
@@ -127,8 +124,6 @@ class ThreadUser(threading.Thread):
             key = split_msg[2]
 
         print(f"{self.user.name}: Attempting to join a channel {channel_to_join} with key {key}")
-
-
 
         if channel_to_join not in channelsDAO.keys():
             print(f"{self.user.name}: Creating a new channel {channel_to_join} with key {key} ")
@@ -308,20 +303,7 @@ class ThreadUser(threading.Thread):
             print("User disconnected.")
 
 
-
-
-
 if __name__ == "__main__":
-    # # Start the inter-server communication thread
-    # # Check if port 9999 is available
-    # if utils.check_port(9999):
-    #     inter_server = InterServer()
-    #     inter_server.start()
-    #     time.sleep(0.1)
-    #
-    # else:
-    #     print("Inter server is already running.")
-
     # start server
     if len(sys.argv) >= 2:
         for port in sys.argv[1:]:
@@ -336,4 +318,3 @@ if __name__ == "__main__":
 
             except ValueError:
                 print("Invalid port number. Please provide a valid integer.")
-
