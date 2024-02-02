@@ -49,7 +49,8 @@ class IrcClient:
         bar_horizontal = tk.Scrollbar(messages_frame, orient=tk.HORIZONTAL)
         bar_horizontal.pack(side=tk.BOTTOM, fill=tk.X)
 
-        self.msg_list = tk.Listbox(messages_frame, height=20, width=50, yscrollcommand=bar_vertical.set,
+        self.msg_list = tk.Listbox(messages_frame, height=20, width=50,
+                                   yscrollcommand=bar_vertical.set,
                                    xscrollcommand=bar_horizontal.set)
         bar_vertical.config(command=self.msg_list.yview)
         bar_horizontal.config(command=self.msg_list.xview)
