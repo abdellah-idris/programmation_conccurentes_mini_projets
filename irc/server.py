@@ -258,6 +258,9 @@ class ThreadUser(threading.Thread):
                 msg = data.decode()
             except (KeyboardInterrupt, OSError):
                 print(f"Closing thread for user {self.user.name}")
+                # delete user from DAO
+                userDAO.pop(self.user.name)
+                threadsDAO.pop(self.user.name)
                 exit(0)
 
             if msg[0:8] == "nickname":
