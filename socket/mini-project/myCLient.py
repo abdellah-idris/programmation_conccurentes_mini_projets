@@ -34,23 +34,31 @@ class IrcClient:
 
     def initialize_gui(self):
         self.gui = tk.Tk()
-        self.gui.title("Internet Relay Chat")
+        self.gui.title("Multi Server IRC")
+
+        # Set minimum size for the GUI
+        self.gui.minsize(400, 400)  # Adjust the dimensions as needed
 
         # Messages Frame
         messages_frame = tk.Frame(self.gui)
+        messages_frame.pack(fill=tk.BOTH, expand=True)
+
         bar_vertical = tk.Scrollbar(messages_frame, orient=tk.VERTICAL)
         bar_vertical.pack(side=tk.RIGHT, fill=tk.Y)
+
         bar_horizontal = tk.Scrollbar(messages_frame, orient=tk.HORIZONTAL)
         bar_horizontal.pack(side=tk.BOTTOM, fill=tk.X)
-        self.msg_list = tk.Listbox(messages_frame, height=20, width=50, yscrollcommand=bar_vertical.set, xscrollcommand=bar_horizontal.set)
+
+        self.msg_list = tk.Listbox(messages_frame, height=20, width=50, yscrollcommand=bar_vertical.set,
+                                   xscrollcommand=bar_horizontal.set)
         bar_vertical.config(command=self.msg_list.yview)
         bar_horizontal.config(command=self.msg_list.xview)
-        self.msg_list.pack(side=tk.LEFT, fill=tk.BOTH)
-        self.msg_list.pack()
-        messages_frame.pack()
+
+        self.msg_list.pack(fill=tk.BOTH, expand=True)
 
         # Entry Field Frame
         entry_field_frame = tk.Frame(self.gui)
+        entry_field_frame.pack(pady=10)
         self.entry_field = tk.Entry(entry_field_frame, width=40)
         self.entry_field.bind("<Return>", self.send)
         self.entry_field.grid(row=0, column=0, padx=5, pady=5)
@@ -64,6 +72,7 @@ class IrcClient:
             print(" Server is off... Please Make sur to reconnect")
             self.stream_thread.stop()
             self.client_socket.close()
+            return
 
         try:
             to_server = self.entry_field.get()
