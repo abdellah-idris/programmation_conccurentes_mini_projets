@@ -4,6 +4,8 @@ import tkinter as tk
 import re
 from argparse import ArgumentParser, SUPPRESS
 
+from irc.common import utils
+
 
 class IrcClient:
     def __init__(self, server, port, username):
@@ -219,5 +221,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     LOCALHOST = "127.0.0.1"
-    client_app = IrcClient(LOCALHOST, 9999, "9999")
-    client_app.run()
+    if utils.is_server_active(args.port):
+        client_app = IrcClient(LOCALHOST, args.port, args.username)
+        client_app.run()
+    else:
+        raise UserWarning(f"Server {LOCALHOST}:{args.port}  Not Running")
