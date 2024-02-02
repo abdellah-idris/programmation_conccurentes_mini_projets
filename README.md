@@ -1,7 +1,7 @@
 # IRC & Game Of Life
 These university projects offer opportunities to explore topics such as multithreading, network programming, user interfaces, and synchronization.
 
-## University Project 1: Conway's Game of Life
+# University Project 1: Conway's Game of Life
 
 This university project focuses on simulating Conway's Game of Life, which represents the evolution of a population of cells within a two-dimensional grid. 
 
@@ -18,7 +18,11 @@ python game_of__life/game_of_life.py
 ```
 
 
-## University Project 2: Online Chat Server
+## Example Image
+<img src="https://github.com/abdellah-idris/programmation_conccurentes_mini_projets/blob/master/game_of__life/ressources/img.png" height="400" width="400" alt="Game of life"  />
+
+
+# University Project 2: Online Chat Server
 This university project involves the development of an online chat server using Python. The server implements an Internet Relay Chat (IRC) system, allowing users to communicate in real-time by sending messages and commands to the server.
 
 - Develop a **Multi server IRC**, Inclusing basic commands including /away, /help, /invite, /join, /list, /msg, and /names.
@@ -45,4 +49,9 @@ python irc/client.py <user_name> <port_number>
 ```bash
 python irc/client.py dola 8081
 ```
+
+## Example Image
+The example used port number to set username, each user connected to a diffrent server! PLease ensure to use letters(+numbers if you want).
+
+  <img src="https://github.com/abdellah-idris/programmation_conccurentes_mini_projets/blob/master/irc/ressources/img.png" height="400" width="1000" alt="Game of life"  />
 
