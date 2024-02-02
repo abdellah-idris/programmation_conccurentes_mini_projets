@@ -39,6 +39,10 @@ class IrcClient:
         # Set minimum size for the GUI
         self.gui.minsize(400, 400)  # Adjust the dimensions as needed
 
+        # Create a label to display the username
+        self.username_label = tk.Label(self.gui, text=f"{self.username}")
+        self.username_label.pack()
+
         # Messages Frame
         messages_frame = tk.Frame(self.gui)
         messages_frame.pack(fill=tk.BOTH, expand=True)
@@ -69,7 +73,7 @@ class IrcClient:
 
     def send(self, event=None):
         if self.stream_thread.server_off:
-            self.msg_list.insert(tk.END, " Server is off... ")
+            self.msg_list.insert(tk.END, " Server is off :( Please Make sur to reconnect")
             print(" Server is off... Please Make sur to reconnect")
             self.stream_thread.stop()
             self.client_socket.close()

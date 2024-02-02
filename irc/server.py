@@ -304,20 +304,28 @@ class ThreadUser(threading.Thread):
 
 
 if __name__ == "__main__":
-    # start server
+    # Store the ports that have already been used
+    used_ports = set()
+
     if len(sys.argv) >= 2:
-        for port in sys.argv[1:]:
+        for port_str in sys.argv[1:]:
             try:
-                if utils.check_port(int(port)):
-                    server = Server(int(port))
+                port = int(port_str)
+
+                if port not in used_ports and utils.check_port(port):
+                    server = Server(port)
                     server.start()
+                    used_ports.add(port)
                     time.sleep(0.1)
 
-                else:
+                elif port in used_ports:
                     print(f"Server already running on port: {port}")
 
+                else:
+                    print(f"Port {port} is already in use by another application.")
+
             except ValueError:
-                print("Invalid port number. Please provide a valid integer.")
+                print(f"Invalid port number: {port_str}. Please provide a valid integer.")
 
     else:
         raise UserWarning("No port specified.")
