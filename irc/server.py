@@ -318,3 +318,6 @@ if __name__ == "__main__":
 
             except ValueError:
                 print("Invalid port number. Please provide a valid integer.")
+
+    else:
+        raise UserWarning("No port specified.")
