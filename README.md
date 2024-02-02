@@ -55,3 +55,7 @@ The example used port number to set username, each user connected to a diffrent 
 
   <img src="https://github.com/abdellah-idris/programmation_conccurentes_mini_projets/blob/master/irc/ressources/img.png" height="400" width="1000" alt="Game of life"  />
 
+## Futur idea
+- Separate each channels and users messages in the GUI (Acces a specific channel or user discussion)
+- Persist messages
+- Add IRC command "https://datatracker.ietf.org/doc/html/rfc1459"
