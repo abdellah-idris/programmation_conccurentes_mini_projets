@@ -4,7 +4,7 @@ import tkinter as tk
 import re
 from argparse import ArgumentParser, SUPPRESS
 
-from irc.common import utils
+from common import utils
 
 
 class IrcClient:
