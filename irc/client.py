@@ -4,7 +4,7 @@ import tkinter as tk
 import re
 from argparse import ArgumentParser, SUPPRESS
 
-from irc.common import utils
+from common import utils
 
 
 class IrcClient:
@@ -44,7 +44,7 @@ class IrcClient:
         # Draw a circle as the status indicator
         x, y, radius = 10, 10, 5  # Adjust position and size as needed
         self.status_canvas.create_oval(x - radius, y - radius, x + radius, y + radius, fill=color)
-
+    
     def run(self):
         self.initialize_gui()
         self.stream_thread = IrcThread(self.client_socket, self.msg_list)
@@ -101,11 +101,23 @@ class IrcClient:
         entry_field_frame.pack(pady=10)
 
         self.gui.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    
+    
+    
+    
+    def display_right_message(self, message):
+        # Insérez le message dans la Listbox
+        item_index = tk.END  # Récupérez l'index de l'élément inséré
+        self.msg_list.insert(item_index, message)
+
+        # Appliquez le style d'arrière-plan à l'élément
+        self.msg_list.itemconfig(item_index, {'bg': 'lightblue'})
 
     def send(self, event=None):
         if self.stream_thread.server_off:
-            self.msg_list.insert(tk.END, " Server is off :( Please Make sur to reconnect")
-            print(" Server is off... Please Make sur to reconnect")
+            self.display_right_message(" Server is off :( Please make sure to reconnect")
+            print(" Server is off... Please make sure to reconnect")
             self.stream_thread.stop()
             self.client_socket.close()
             return
@@ -115,9 +127,9 @@ class IrcClient:
             print(f"to_server: {to_server}")
             if bool(re.match('^ *$', to_server)):
                 print("Please enter a command/message")
-                self.msg_list.insert(tk.END, " Please enter a command/message")
+                self.display_right_message(" Please enter a command/message")
             else:
-                self.msg_list.insert(tk.END, to_server)
+                self.display_right_message(to_server)
                 print(to_server)
 
                 if self.is_valid_command(to_server):
@@ -126,16 +138,15 @@ class IrcClient:
                     elif to_server.split()[0] == '/away':
                         self.toggle_away_status()
                         self.client_socket.sendall(bytes(to_server, 'UTF-8'))
-
                     else:
                         self.client_socket.sendall(bytes(to_server, 'UTF-8'))
                 else:
-                    self.msg_list.insert(tk.END, ' Unavailable or incorrect command! ')
-                    print('Unavailable or incorrect command! ')
+                    self.display_right_message('Unavailable or incorrect command!')
+                    print('Unavailable or incorrect command!')
 
         except (KeyboardInterrupt, ValueError, BrokenPipeError):
             print("Server disconnected...")
-            self.msg_list.insert(tk.END, " Server disconnected...")
+            self.display_right_message(" Server disconnected...")
 
             to_server = '/Disconnect'
             try:
@@ -147,6 +158,7 @@ class IrcClient:
                 self.client_socket.close()
 
         self.entry_field.delete(0, 'end')
+
 
     def is_valid_command(self, command):
         for pattern in self.commands_regex.values():
